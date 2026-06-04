@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>COGS Manager</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#f0f4f8;color:#1a1a2e;min-height:100vh}
+.header{background:#1F3864;color:#fff;padding:13px 24px;display:flex;align-items:center;justify-content:space-between}
+.header h1{font-size:16px;font-weight:700}
+.header .meta{font-size:11px;opacity:.7;display:flex;align-items:center;gap:10px}
+.dot{width:8px;height:8px;border-radius:50%;background:#4ade80;display:inline-block}
+.dot.red{background:#f87171}
+.tabs{background:#fff;border-bottom:2px solid #dde3ed;display:flex;padding:0 24px}
+.tab{padding:12px 20px;font-size:13px;font-weight:600;cursor:pointer;color:#94a3b8;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s}
+.tab.active{color:#1F3864;border-bottom-color:#1F3864}
+.tab:hover{color:#2E75B6}
+.tab-content{display:none}.tab-content.active{display:block}
+
+.search-bar{background:#fff;border-bottom:1px solid #dde3ed;padding:12px 24px;display:flex;gap:10px;position:sticky;top:0;z-index:50}
+.sw{position:relative;flex:1}
+.sw input{width:100%;padding:9px 14px 9px 36px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px;outline:none;font-family:Arial}
+.sw input:focus{border-color:#2E75B6}
+.sw .ico{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:#94a3b8}
+.sugg{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1px solid #dde3ed;border-radius:8px;max-height:200px;overflow-y:auto;z-index:200;box-shadow:0 4px 16px rgba(0,0,0,.1)}
+.si{padding:9px 14px;cursor:pointer;font-size:13px;font-family:monospace;color:#2E75B6;border-bottom:1px solid #f1f5f9}
+.si:hover{background:#EEF4FB}
+.si em{color:#94a3b8;font-family:Arial;font-style:normal;font-size:11px;margin-left:8px}
+.btn{background:#1F3864;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:13px;cursor:pointer;font-weight:600;font-family:Arial;white-space:nowrap}
+.btn:hover{background:#2E75B6}
+.btn.sec{background:#fff;color:#1F3864;border:1.5px solid #1F3864}.btn.sec:hover{background:#EEF4FB}
+.btn.danger{background:#fff;color:#dc2626;border:1.5px solid #fca5a5}.btn.danger:hover{background:#fff5f5}
+.btn.sm{padding:5px 12px;font-size:12px}
+.btn.green{background:#16a34a}.btn.green:hover{background:#15803d}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+.content{padding:20px 24px}
+.empty-state{text-align:center;padding:60px 20px;color:#94a3b8}
+.empty-state .big{font-size:40px;margin-bottom:10px}
+
+.sku-card{background:#fff;border-radius:12px;border:1px solid #dde3ed;overflow:hidden;margin-bottom:16px}
+.sku-head{background:#1F3864;color:#fff;padding:13px 20px;display:flex;align-items:center;justify-content:space-between}
+.sku-head h2{font-size:14px;font-weight:700}
+.tags{display:flex;gap:6px}
+.tag{background:rgba(255,255,255,.15);border-radius:20px;padding:3px 10px;font-size:11px}
+.tag.warn{background:rgba(251,191,36,.25);color:#fde68a}
+.extra-costs{padding:12px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:16px}
+.extra-costs label{font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-right:6px}
+.extra-costs input{padding:7px 10px;border:1.5px solid #cbd5e1;border-radius:6px;font-size:14px;font-weight:600;color:#0070C0;text-align:right;width:130px}
+.extra-costs input:focus{outline:none;border-color:#2E75B6}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead tr{background:#F1F5FB}
+thead th{padding:9px 16px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#2E75B6;font-weight:700;border-bottom:1px solid #dde3ed}
+th.r{text-align:right}th.c{text-align:center}
+tbody tr{border-bottom:1px solid #f1f5f9}
+tbody tr:hover{background:#f8fafc}
+tbody td{padding:9px 16px;color:#334155;vertical-align:middle}
+td.num{text-align:right;font-family:monospace}
+td.ctr{text-align:center;font-family:monospace;color:#64748b}
+td.sn{color:#94a3b8;width:32px;font-size:12px}
+.ci{width:88px;padding:5px 8px;border:1.5px solid #dde3ed;border-radius:5px;font-size:13px;color:#0070C0;text-align:right;font-family:monospace}
+.ci:focus{outline:none;border-color:#2E75B6}
+.ci.zero{color:#dc2626;border-color:#fca5a5;background:#fff5f5}
+.lc{font-weight:600;color:#1e3a5f}
+.lc.zero{color:#dc2626}
+.totals{display:grid;grid-template-columns:repeat(3,1fr);border-top:2px solid #1F3864}
+.tb{padding:13px 20px;border-right:1px solid #e2e8f0}
+.tb:last-child{border-right:none;background:#1F3864}
+.tb label{font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:3px}
+.tb:last-child label{color:rgba(255,255,255,.6)}
+.tb .v{font-size:19px;font-weight:700;color:#1F3864}
+.tb:last-child .v{color:#fff}
+.foot-note{font-size:11px;color:#94a3b8;padding:7px 20px;background:#f8fafc;border-top:1px solid #f1f5f9}
+.foot-note span{color:#dc2626}
+
+.manage{padding:20px 24px;display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+.panel{background:#fff;border-radius:12px;border:1px solid #dde3ed;overflow:hidden}
+.panel-head{background:#1F3864;color:#fff;padding:12px 18px;display:flex;align-items:center;justify-content:space-between}
+.panel-head h3{font-size:13px;font-weight:700}
+.panel-body{padding:16px 18px}
+.field{margin-bottom:12px}
+.field label{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;font-weight:600}
+.field input,.field select{width:100%;padding:8px 11px;border:1.5px solid #cbd5e1;border-radius:7px;font-size:13px;font-family:Arial;outline:none}
+.field input:focus{border-color:#2E75B6}
+.field .row{display:flex;gap:8px}
+.field .row input{flex:1}
+.rm-list{max-height:280px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px}
+.rm-row{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid #f1f5f9;font-size:13px}
+.rm-row:last-child{border-bottom:none}
+.rm-row:hover{background:#f8fafc}
+.rm-row .rname{flex:1;color:#334155;font-size:12px}
+.rm-row .rcode{color:#94a3b8;font-size:11px;min-width:80px}
+.rm-filter{width:100%;padding:7px 11px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:13px;margin-bottom:8px;outline:none;font-family:Arial}
+.rm-filter:focus{border-color:#2E75B6}
+.sku-bom-row{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.sku-bom-row input{flex:1;padding:6px 9px;border:1.5px solid #cbd5e1;border-radius:6px;font-size:12px;font-family:Arial;outline:none}
+.sku-bom-row input:focus{border-color:#2E75B6}
+.sku-bom-row input.qty{width:70px;flex:none;text-align:right}
+.sku-bom-rows{max-height:220px;overflow-y:auto;margin-bottom:10px}
+.msg{font-size:12px;padding:7px 11px;border-radius:6px;margin-bottom:10px;display:none}
+.msg.ok{background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0}
+.msg.err{background:#fff5f5;color:#dc2626;border:1px solid #fca5a5}
+.badge-count{background:#EEF4FB;color:#2E75B6;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:600}
+.cost-edit-inp{width:80px;padding:4px 7px;border:1.5px solid #dde3ed;border-radius:5px;font-size:12px;color:#0070C0;text-align:right;font-family:monospace}
+.cost-edit-inp:focus{outline:none;border-color:#2E75B6}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-overlay{text-align:center;padding:40px;color:#64748b;font-size:13px}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>⚡ COGS Manager</h1>
+  <div class="meta">
+    <span class="dot red" id="connDot"></span>
+    <span id="connStatus">Connecting…</span>
+    <span id="headerMeta"></span>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('search')">🔍 SKU Lookup</div>
+  <div class="tab" onclick="switchTab('manage')">⚙️ Manage RMs &amp; SKUs</div>
+</div>
+
+<!-- TAB 1: SEARCH -->
+<div class="tab-content active" id="tab-search">
+  <div class="search-bar">
+    <div class="sw">
+      <span class="ico">🔍</span>
+      <input type="text" id="skuInput" placeholder="Search SKU code…" autocomplete="off" spellcheck="false" />
+      <div class="sugg" id="sugg" style="display:none"></div>
+    </div>
+    <button class="btn" onclick="doSearch()">Search</button>
+  </div>
+  <div class="content">
+    <div class="empty-state" id="emptyState">
+      <div class="big">📦</div>
+      <p style="font-size:13px;margin-top:6px">Search a SKU to see full COGS breakdown</p>
+    </div>
+    <div id="result"></div>
+  </div>
+</div>
+
+<!-- TAB 2: MANAGE -->
+<div class="tab-content" id="tab-manage">
+  <div class="manage">
+    <!-- RM Panel -->
+    <div class="panel">
+      <div class="panel-head">
+        <h3>RM Master <span class="badge-count" id="rmCount">…</span></h3>
+        <button class="btn sm" onclick="showAddRM()">+ Add RM</button>
+      </div>
+      <div class="panel-body">
+        <div class="msg" id="rmMsg"></div>
+        <div id="addRMForm" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:12px">
+          <div class="field"><label>RM Name</label><input type="text" id="newRMName" placeholder="e.g. chrome pink balloons" /></div>
+          <div class="field"><label>Unit Cost (₹)</label><input type="number" id="newRMCost" placeholder="0.00" min="0" step="0.01" /></div>
+          <div class="field"><label>Current Stock</label><input type="number" id="newRMStock" placeholder="0" min="0" /></div>
+          <div class="field"><label>Bin Location</label><input type="text" id="newRMBin" placeholder="e.g. F4-BR-R6-A2" /></div>
+          <div style="display:flex;gap:8px">
+            <button class="btn sm green" onclick="addRM()">Save RM</button>
+            <button class="btn sm sec" onclick="document.getElementById('addRMForm').style.display='none'">Cancel</button>
+          </div>
+        </div>
+        <input class="rm-filter" type="text" id="rmFilter" placeholder="Filter RMs…" oninput="filterRMs()" />
+        <div class="rm-list" id="rmList"><div class="loading-overlay">Loading RMs…</div></div>
+      </div>
+    </div>
+
+    <!-- SKU Panel -->
+    <div class="panel">
+      <div class="panel-head">
+        <h3>SKU Builder <span class="badge-count" id="skuCount">…</span></h3>
+        <button class="btn sm" onclick="showAddSKU()">+ New SKU</button>
+      </div>
+      <div class="panel-body">
+        <div class="msg" id="skuMsg"></div>
+        <div class="field">
+          <label>Edit Existing SKU</label>
+          <div class="row">
+            <input type="text" id="editSKUInput" placeholder="Type SKU to load…" />
+            <button class="btn sm sec" onclick="loadSKUEdit()">Load</button>
+          </div>
+        </div>
+        <div id="skuForm" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-top:8px">
+          <div class="field"><label>SKU Code</label><input type="text" id="skuCode" placeholder="e.g. MY-NEW-001" /></div>
+          <div class="field"><label>SKU Name (optional)</label><input type="text" id="skuName" placeholder="Product name" /></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <label style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;font-weight:600">Raw Materials</label>
+            <button class="btn sm sec" onclick="addBOMRow()">+ Add RM</button>
+          </div>
+          <div class="sku-bom-rows" id="skuBOMRows"></div>
+          <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap">
+            <button class="btn sm green" id="saveSKUBtn" onclick="saveSKU()">Save SKU</button>
+            <button class="btn sm sec" onclick="document.getElementById('skuForm').style.display='none'">Cancel</button>
+            <button class="btn sm danger" id="deleteSKUBtn" onclick="deleteSKU()" style="display:none">Delete SKU</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<datalist id="rmDatalist"></datalist>
+
+<script>
+const SUPA_URL = 'https://dglbtvhsfodwbjehkyyp.supabase.co';
+const SUPA_KEY = 'sb_publishable_w9oINjPr9AqgOkETRJR_Ww_QjXnY0yh';
+const { createClient } = supabase;
+const sb = createClient(SUPA_URL, SUPA_KEY);
+
+// ── State ────────────────────────────────────────────────
+let skuCache = [];   // [{sku_code, sku_name}]
+let rmCache  = [];   // [{rm_name_key, rm_name, unit_cost, rm_code, ...}]
+
+// ── Init ─────────────────────────────────────────────────
+async function init() {
+  try {
+    const [{data: skus}, {data: rms}] = await Promise.all([
+      sb.from('sku_master').select('sku_code,sku_name').order('sku_code'),
+      sb.from('rm_master').select('*').order('rm_name')
+    ]);
+    skuCache = skus || [];
+    rmCache  = rms  || [];
+    document.getElementById('connDot').className = 'dot';
+    document.getElementById('connStatus').textContent = 'Live';
+    document.getElementById('headerMeta').textContent = skuCache.length + ' SKUs · ' + rmCache.length + ' RMs';
+    document.getElementById('rmCount').textContent  = rmCache.length;
+    document.getElementById('skuCount').textContent = skuCache.length;
+    buildDatalist();
+    renderRMList();
+  } catch(e) {
+    document.getElementById('connStatus').textContent = 'Connection failed';
+    console.error(e);
+  }
+}
+
+// ── Tab switch ────────────────────────────────────────────
+function switchTab(t) {
+  document.querySelectorAll('.tab').forEach((el,i) => el.classList.toggle('active', ['search','manage'][i]===t));
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-'+t).classList.add('active');
+}
+
+const INR = n => '₹'+parseFloat(n||0).toFixed(2);
+
+// ═══════════════════════════════════════════════════════
+// TAB 1 — SEARCH
+// ═══════════════════════════════════════════════════════
+const inp  = document.getElementById('skuInput');
+const sugg = document.getElementById('sugg');
+
+inp.addEventListener('input', () => {
+  const q = inp.value.trim().toLowerCase();
+  if(!q) { sugg.style.display='none'; document.getElementById('result').innerHTML=''; document.getElementById('emptyState').style.display='block'; return; }
+  const hits = skuCache.filter(s => s.sku_code.toLowerCase().includes(q)).slice(0,12);
+  if(!hits.length) { sugg.style.display='none'; return; }
+  sugg.innerHTML = hits.map(s => `<div class="si" onclick="pick('${s.sku_code}')">${s.sku_code}<em>${s.sku_name||''}</em></div>`).join('');
+  sugg.style.display='block';
+});
+inp.addEventListener('keydown', e => { if(e.key==='Enter') doSearch(); });
+document.addEventListener('click', e => { if(!e.target.closest('.sw')) sugg.style.display='none'; });
+
+function pick(s) { inp.value=s; sugg.style.display='none'; doSearch(); }
+
+function calcAll() {
+  let rm=0;
+  document.querySelectorAll('.ci').forEach(el => {
+    const qty=parseFloat(el.dataset.qty)||0, uc=parseFloat(el.value)||0, lc=uc*qty;
+    rm+=lc;
+    const tr=el.closest('tr');
+    const lcEl=tr.querySelector('.lc');
+    lcEl.textContent=INR(lc);
+    lcEl.className='lc num'+(lc===0?' zero':'');
+    el.className='ci'+(uc===0?' zero':'');
+  });
+  document.getElementById('rmTot').textContent=INR(rm);
+  const lab=parseFloat(document.getElementById('labInp').value)||0;
+  document.getElementById('labTot').textContent=INR(lab);
+  document.getElementById('cogsTot').textContent=INR(rm+lab);
+}
+
+async function doSearch() {
+  sugg.style.display='none';
+  const q=inp.value.trim();
+  const match=skuCache.find(s=>s.sku_code.toLowerCase()===q.toLowerCase())
+             ||skuCache.find(s=>s.sku_code.toLowerCase().includes(q.toLowerCase()));
+  document.getElementById('emptyState').style.display='none';
+  const res=document.getElementById('result');
+  if(!match) { res.innerHTML=`<div class="empty-state"><div class="big">⚠️</div><p>SKU not found: "${q}"</p></div>`; return; }
+
+  res.innerHTML='<div class="loading-overlay"><div class="spinner" style="border-color:#2E75B6;border-top-color:transparent"></div>Loading BOM…</div>';
+
+  const {data: items} = await sb.from('bom').select('rm_name,qty,unit_cost').eq('sku_code', match.sku_code);
+  if(!items||!items.length) { res.innerHTML=`<div class="empty-state"><div class="big">📭</div><p>No BOM found for ${match.sku_code}</p></div>`; return; }
+
+  // Enrich with latest unit cost from rm_master
+  const enriched = items.map(item => {
+    const rm = rmCache.find(r => r.rm_name.toLowerCase()===item.rm_name.toLowerCase());
+    return { ...item, cost: rm ? rm.unit_cost : item.unit_cost };
+  });
+  const missing = enriched.filter(i=>!i.cost||i.cost===0).length;
+
+  const rows = enriched.map((item,i) => `
+    <tr>
+      <td class="sn">${i+1}</td>
+      <td>${item.rm_name}</td>
+      <td class="ctr">${item.qty%1===0?item.qty.toFixed(0):item.qty}</td>
+      <td class="num"><input class="ci${!item.cost?' zero':''}" type="number" min="0" step="0.01" value="${(item.cost||0).toFixed(2)}" data-qty="${item.qty}" oninput="calcAll()" /></td>
+      <td class="lc num${!item.cost?' zero':''}">${INR((item.cost||0)*item.qty)}</td>
+    </tr>`).join('');
+
+  res.innerHTML=`
+    <div class="sku-card">
+      <div class="sku-head">
+        <h2>${match.sku_code}${match.sku_name?' — '+match.sku_name:''}</h2>
+        <div class="tags">
+          <span class="tag">${enriched.length} RMs</span>
+          ${missing>0?`<span class="tag warn">${missing} missing</span>`:`<span class="tag">✓ fully costed</span>`}
+        </div>
+      </div>
+      <div class="extra-costs">
+        <label>Labour Cost (₹)</label>
+        <input type="number" id="labInp" value="0" min="0" step="0.01" oninput="calcAll()" />
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Raw Material</th><th class="c">Qty</th><th class="r">Unit Cost (₹)</th><th class="r">Line Cost (₹)</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="totals">
+        <div class="tb"><label>Total RM Cost</label><div class="v" id="rmTot">₹0.00</div></div>
+        <div class="tb"><label>Labour</label><div class="v" id="labTot">₹0.00</div></div>
+        <div class="tb"><label>Total COGS</label><div class="v" id="cogsTot">₹0.00</div></div>
+      </div>
+      ${missing>0?`<div class="foot-note">⚠ <span>${missing} RM(s)</span> have no cost — update in Manage tab.</div>`:''}
+    </div>`;
+  calcAll();
+}
+
+// ═══════════════════════════════════════════════════════
+// TAB 2 — MANAGE
+// ═══════════════════════════════════════════════════════
+function renderRMList(data) {
+  const list = data || rmCache;
+  document.getElementById('rmList').innerHTML = list.slice(0,150).map(r => `
+    <div class="rm-row">
+      <span class="rname">${r.rm_name}</span>
+      <span class="rcode">${r.rm_code||''}</span>
+      <input class="cost-edit-inp" type="number" min="0" step="0.01" value="${r.unit_cost||''}" placeholder="₹"
+        onchange="updateRMCost(${r.id}, this.value, '${r.rm_name_key}')" />
+    </div>`).join('') || '<div style="padding:12px;color:#94a3b8;font-size:13px">No RMs found</div>';
+}
+
+function filterRMs() {
+  const q = document.getElementById('rmFilter').value.toLowerCase();
+  renderRMList(q ? rmCache.filter(r => r.rm_name.toLowerCase().includes(q) || (r.rm_code||'').toLowerCase().includes(q)) : rmCache);
+}
+
+async function updateRMCost(id, val, key) {
+  const cost = parseFloat(val)||0;
+  const {error} = await sb.from('rm_master').update({unit_cost: cost}).eq('id', id);
+  if(error) { showMsg('rmMsg','err','Update failed: '+error.message); return; }
+  const r = rmCache.find(r=>r.id===id);
+  if(r) r.unit_cost=cost;
+  showMsg('rmMsg','ok','✓ Cost updated');
+}
+
+function showAddRM() {
+  document.getElementById('addRMForm').style.display='block';
+  document.getElementById('newRMName').focus();
+}
+
+async function addRM() {
+  const name  = document.getElementById('newRMName').value.trim();
+  const cost  = parseFloat(document.getElementById('newRMCost').value)||0;
+  const stock = parseFloat(document.getElementById('newRMStock').value)||0;
+  const bin   = document.getElementById('newRMBin').value.trim();
+  if(!name) { showMsg('rmMsg','err','RM name required'); return; }
+  const {data, error} = await sb.from('rm_master').insert({
+    rm_name: name, rm_name_key: name.toLowerCase(),
+    unit_cost: cost, current_stock: stock, bin_location: bin
+  }).select().single();
+  if(error) { showMsg('rmMsg','err','Error: '+error.message); return; }
+  rmCache.push(data);
+  rmCache.sort((a,b)=>a.rm_name.localeCompare(b.rm_name));
+  document.getElementById('newRMName').value='';
+  document.getElementById('newRMCost').value='';
+  document.getElementById('newRMStock').value='';
+  document.getElementById('newRMBin').value='';
+  document.getElementById('addRMForm').style.display='none';
+  document.getElementById('rmCount').textContent=rmCache.length;
+  buildDatalist(); renderRMList();
+  showMsg('rmMsg','ok','✓ Added: '+name);
+}
+
+// ── SKU Builder ───────────────────────────────────────────
+let editingSKU = null;
+
+function showAddSKU() {
+  editingSKU=null;
+  document.getElementById('skuCode').value='';
+  document.getElementById('skuName').value='';
+  document.getElementById('skuBOMRows').innerHTML='';
+  document.getElementById('deleteSKUBtn').style.display='none';
+  addBOMRow(); addBOMRow(); addBOMRow();
+  document.getElementById('skuForm').style.display='block';
+}
+
+async function loadSKUEdit() {
+  const q=document.getElementById('editSKUInput').value.trim();
+  const match=skuCache.find(s=>s.sku_code.toLowerCase()===q.toLowerCase())
+             ||skuCache.find(s=>s.sku_code.toLowerCase().includes(q.toLowerCase()));
+  if(!match) { showMsg('skuMsg','err','SKU not found'); return; }
+  const {data: rows} = await sb.from('bom').select('rm_name,qty').eq('sku_code',match.sku_code);
+  editingSKU=match.sku_code;
+  document.getElementById('skuCode').value=match.sku_code;
+  document.getElementById('skuName').value=match.sku_name||'';
+  document.getElementById('skuBOMRows').innerHTML='';
+  (rows||[]).forEach(r=>addBOMRow(r.rm_name,r.qty));
+  addBOMRow();
+  document.getElementById('deleteSKUBtn').style.display='inline-block';
+  document.getElementById('skuForm').style.display='block';
+  showMsg('skuMsg','ok','Loaded: '+match.sku_code+' ('+( rows||[]).length+' RMs)');
+}
+
+function addBOMRow(rm='',qty='') {
+  const div=document.createElement('div');
+  div.className='sku-bom-row';
+  div.innerHTML=`<input type="text" placeholder="RM name…" value="${rm}" list="rmDatalist" /><input type="number" class="qty" placeholder="Qty" value="${qty}" min="0" step="0.01" /><button class="btn sm danger" onclick="this.parentElement.remove()">✕</button>`;
+  document.getElementById('skuBOMRows').appendChild(div);
+}
+
+async function saveSKU() {
+  const code=document.getElementById('skuCode').value.trim();
+  const name=document.getElementById('skuName').value.trim();
+  if(!code) { showMsg('skuMsg','err','SKU code required'); return; }
+  const rows=[...document.querySelectorAll('#skuBOMRows .sku-bom-row')];
+  const items=[];
+  for(const row of rows) {
+    const [rmI,qtyI]=row.querySelectorAll('input');
+    const rm=rmI.value.trim(), qty=parseFloat(qtyI.value)||0;
+    if(!rm||!qty) continue;
+    const rmR=rmCache.find(r=>r.rm_name.toLowerCase()===rm.toLowerCase());
+    items.push({sku_code:code,rm_name:rm,rm_code:rmR?.rm_code||'',qty,unit_cost:rmR?.unit_cost||0});
+  }
+  if(!items.length) { showMsg('skuMsg','err','Add at least one RM'); return; }
+
+  const btn=document.getElementById('saveSKUBtn');
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Saving…';
+
+  // Upsert SKU master
+  await sb.from('sku_master').upsert({sku_code:code, sku_name:name}, {on_conflict:'sku_code'});
+  // Delete old BOM rows, insert new
+  await sb.from('bom').delete().eq('sku_code',code);
+  await sb.from('bom').insert(items);
+
+  // Update local cache
+  if(!skuCache.find(s=>s.sku_code===code)) skuCache.push({sku_code:code,sku_name:name});
+  else { const s=skuCache.find(s=>s.sku_code===code); if(s) s.sku_name=name; }
+  editingSKU=code;
+  document.getElementById('deleteSKUBtn').style.display='inline-block';
+  document.getElementById('skuCount').textContent=skuCache.length;
+  btn.disabled=false; btn.innerHTML='Save SKU';
+  buildDatalist();
+  showMsg('skuMsg','ok','✓ Saved: '+code+' ('+items.length+' RMs)');
+}
+
+async function deleteSKU() {
+  if(!editingSKU||!confirm('Delete "'+editingSKU+'"?')) return;
+  await sb.from('bom').delete().eq('sku_code',editingSKU);
+  await sb.from('sku_master').delete().eq('sku_code',editingSKU);
+  skuCache=skuCache.filter(s=>s.sku_code!==editingSKU);
+  editingSKU=null;
+  document.getElementById('skuForm').style.display='none';
+  document.getElementById('skuCount').textContent=skuCache.length;
+  showMsg('skuMsg','ok','SKU deleted');
+}
+
+function buildDatalist() {
+  document.getElementById('rmDatalist').innerHTML=rmCache.map(r=>`<option value="${r.rm_name}">`).join('');
+}
+
+function showMsg(id,type,text) {
+  const el=document.getElementById(id);
+  el.className='msg '+type; el.textContent=text; el.style.display='block';
+  setTimeout(()=>el.style.display='none',3000);
+}
+
+init();
+</script>
+</body>
+</html>
